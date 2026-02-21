@@ -124,8 +124,20 @@ def build_google_news_rss_url(query: str, hl: str = "es-419", gl: str = "PY", ce
     return f"https://news.google.com/rss/search?q={q}&hl={hl}&gl={gl}&ceid={ceid}"
 
 
+
+def _sanitize_google_news_query(query: str) -> str:
+    # Google News RSS es sensible a operadores. Normalizamos a una consulta "suave".
+    q = query
+    q = q.replace("(", " ").replace(")", " ")
+    q = re.sub(r'\bOR\b', ' ', q, flags=re.IGNORECASE)
+    q = re.sub(r'\bAND\b', ' ', q, flags=re.IGNORECASE)
+    q = q.replace('"', ' ')
+    q = re.sub(r'\s+', ' ', q).strip()
+    return q
+
+
 def fetch_google_news_rss(query_name: str, query: str) -> List[Mention]:
-    rss_url = build_google_news_rss_url(query)
+    rss_url = build_google_news_rss_url(_sanitize_google_news_query(query))
     d = feedparser.parse(rss_url)
     out: List[Mention] = []
     for e in d.entries or []:

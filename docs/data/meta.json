@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-02-21T16:13:57.910552+00:00",
-  "query": null,
+  "generated_at": "2026-02-21T16:24:42.955684+00:00",
+  "queries": [],
   "n_items": 0,
-  "note": "Placeholder. Run GitHub Actions (workflow_dispatch) to populate data."
+  "note": "Inicial. Ejecute GitHub Actions o corra scripts localmente para poblar datos."
 }
