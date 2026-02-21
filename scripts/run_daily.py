@@ -107,13 +107,44 @@ def main() -> None:
 
     df_all = merge_with_existing(str(parquet_path), df_new)
 
-    if not df_all.is_empty():
-        df_all.write_parquet(parquet_path)
-        df_all.write_csv(csv_path)
-        write_summaries(df_all, out_dir)
-    else:
-        # Garantiza que exista al menos un archivo placeholder para evitar confusiones en el repo
+    # Esquema mínimo (para asegurar artefactos aunque no existan menciones)
+    schema_cols = [
+        ("query_name", pl.Utf8),
+        ("query", pl.Utf8),
+        ("source", pl.Utf8),
+        ("title", pl.Utf8),
+        ("extracted_title", pl.Utf8),
+        ("url", pl.Utf8),
+        ("domain", pl.Utf8),
+        ("published_at", pl.Datetime(time_zone="UTC")),
+        ("snippet", pl.Utf8),
+        ("text", pl.Utf8),
+        ("topic", pl.Utf8),
+        ("sentiment_label", pl.Utf8),
+        ("sentiment_score", pl.Float64),
+        ("url_sha256", pl.Utf8),
+    ]
+
+    if df_all.is_empty():
+        df_all = pl.DataFrame({c: [] for c, _ in schema_cols}).with_columns([
+            pl.col("published_at").cast(pl.Datetime(time_zone="UTC")),
+            pl.col("sentiment_score").cast(pl.Float64),
+        ])
         (out_dir / ".empty_run").write_text("No data collected.\n", encoding="utf-8")
+    else:
+        if (out_dir / ".empty_run").exists():
+            try:
+                (out_dir / ".empty_run").unlink()
+            except Exception:
+                pass
+
+    # Persistencia siempre (aunque sea vacío)
+    df_all.write_parquet(parquet_path)
+    df_all.write_csv(csv_path)
+
+    # Resúmenes solo si hay datos
+    if not df_all.is_empty():
+        write_summaries(df_all, out_dir)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -36,7 +37,7 @@ def main() -> None:
             "n_items": 0,
             "note": "Dataset parquet not found."
         }
-        (site_dir / "data" / "meta.json").write_text(pl.DataFrame([meta]).write_json(), encoding="utf-8")
+        (site_dir / "data" / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return
 
     df = pl.read_parquet(parquet_path)
@@ -68,7 +69,7 @@ def main() -> None:
         "n_items": int(df_out.height),
         "max_items_dashboard": max_items,
     }
-    (site_dir / "data" / "meta.json").write_text(pl.DataFrame([meta]).write_json(), encoding="utf-8")
+    (site_dir / "data" / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
