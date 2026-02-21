@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>PARACEL · Monitor de Opinión</title>
+
+  <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/tabulator-tables@6.2.5/dist/js/tabulator.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+  <style>
+    :root{--bg:#0b1220;--panel:#0f172a;--panel2:#111a2e;--text:#e5e7eb;--muted:#9aa4b2;--border:#26324d;--accent:#22c55e;}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    header{padding:18px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--panel2),var(--bg))}
+    h1{margin:0;font-size:18px}
+    #meta{margin-top:6px;color:var(--muted);font-size:12px}
+    .wrap{max-width:1400px;margin:0 auto;padding:16px 20px}
+    .grid{display:grid;grid-template-columns:360px 1fr;gap:14px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px}
+    .card h2{margin:0 0 10px 0;font-size:14px}
+    label{display:block;font-size:12px;color:var(--muted);margin-top:10px;margin-bottom:6px}
+    select,input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0b1220;color:var(--text);outline:none}
+    .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+    .kpi{background:#0b1220;border:1px solid var(--border);border-radius:12px;padding:10px}
+    .kpi .v{font-weight:700;font-size:18px}
+    .kpi .k{font-size:11px;color:var(--muted);margin-top:4px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    a{color:var(--accent);text-decoration:none}
+    @media(max-width:1100px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header>
+  <h1>PARACEL · Monitor de Opinión en Web y Medios</h1>
+  <div id="meta">Cargando…</div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card">
+      <h2>Filtros</h2>
+
+      <label>Fuente</label>
+      <select id="f_source"><option value="">Todas</option></select>
+
+      <label>Dominio</label>
+      <select id="f_domain"><option value="">Todos</option></select>
+
+      <label>Tópico</label>
+      <select id="f_topic"><option value="">Todos</option></select>
+
+      <label>Sentimiento</label>
+      <select id="f_sent"><option value="">Todos</option></select>
+
+      <label>Buscar (título/snippet/texto)</label>
+      <input id="f_q" placeholder="Ejemplo: celulosa, comunidad, empleo"/>
+
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="k_total">0</div><div class="k">Registros</div></div>
+        <div class="kpi"><div class="v" id="k_domains">0</div><div class="k">Dominios</div></div>
+        <div class="kpi"><div class="v" id="k_sources">0</div><div class="k">Fuentes</div></div>
+      </div>
+
+      <div style="margin-top:10px;color:var(--muted);font-size:11px">
+        Datos: <a href="data/latest.json" target="_blank" rel="noreferrer">latest.json</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Dashboard</h2>
+
+      <div class="row">
+        <div class="card" style="margin:0">
+          <h2 style="margin-bottom:6px">Menciones por día</h2>
+          <div id="chart_day" style="height:320px"></div>
+        </div>
+        <div class="card" style="margin:0">
+          <h2 style="margin-bottom:6px">Distribución</h2>
+          <div id="chart_dist" style="height:320px"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>Detalle</h2>
+        <div id="table"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const el = (id) => document.getElementById(id);
+  const uniq = (arr) => Array.from(new Set(arr.filter(v => v !== null && v !== undefined && String(v).trim() !== "")));
+
+  function toDateKey(x){
+    if(!x) return null;
+    const d = new Date(x);
+    if(isNaN(d.getTime())) return null;
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth()+1).padStart(2,'0');
+    const dd = String(d.getUTCDate()).padStart(2,'0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function setOptions(selectId, values){
+    const sel = el(selectId);
+    const keep = sel.value;
+    sel.innerHTML = `<option value="">${selectId==="f_source"?"Todas":"Todos"}</option>`;
+    values.sort().forEach(v => {
+      const o = document.createElement("option");
+      o.value = v; o.textContent = v;
+      sel.appendChild(o);
+    });
+    if(values.includes(keep)) sel.value = keep;
+  }
+
+  const table = new Tabulator("#table", {
+    height:"560px",
+    layout:"fitColumns",
+    pagination:true,
+    paginationSize:25,
+    movableColumns:true,
+    placeholder:"Sin datos",
+    columns:[
+      {title:"Fecha", field:"published_at", width:120, formatter:(c)=>{const v=c.getValue(); if(!v) return ""; const d=new Date(v); if(isNaN(d.getTime())) return ""; return d.toISOString().slice(0,10);}},
+      {title:"Fuente", field:"source", width:140},
+      {title:"Dominio", field:"domain", width:220},
+      {title:"Tópico", field:"topic", width:170},
+      {title:"Sent.", field:"sentiment_label", width:110},
+      {title:"Título", field:"extracted_title", widthGrow:3},
+      {title:"URL", field:"url", width:80, formatter:(c)=>{const u=c.getValue(); if(!u) return ""; return `<a href="${u}" target="_blank" rel="noreferrer">abrir</a>`;}}
+    ]
+  });
+
+  const state = {raw:[], filtered:[]};
+
+  function updateKPIs(){
+    el("k_total").textContent = state.filtered.length;
+    el("k_domains").textContent = uniq(state.filtered.map(x=>x.domain)).length;
+    el("k_sources").textContent = uniq(state.filtered.map(x=>x.source)).length;
+  }
+
+  function renderCharts(){
+    const mapDay = new Map();
+    state.filtered.forEach(r => {
+      const k = toDateKey(r.published_at);
+      if(!k) return;
+      mapDay.set(k, (mapDay.get(k)||0)+1);
+    });
+    const days = Array.from(mapDay.keys()).sort();
+    const counts = days.map(d=>mapDay.get(d));
+
+    Plotly.newPlot("chart_day", [{
+      x:days, y:counts, type:"bar",
+      hovertemplate:"%{x}<br>%{y} menciones<extra></extra>"
+    }], {
+      margin:{l:40,r:10,t:10,b:50},
+      paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+      xaxis:{tickangle:-35}, yaxis:{title:"n"}
+    }, {displayModeBar:false});
+
+    const countBy = (key) => {
+      const m = new Map();
+      state.filtered.forEach(r => {
+        const k = (r[key]||"NA");
+        m.set(k, (m.get(k)||0)+1);
+      });
+      const xs = Array.from(m.keys()).sort((a,b)=>(m.get(b)-m.get(a)));
+      return {x:xs, y:xs.map(v=>m.get(v))};
+    };
+
+    const t = countBy("topic");
+    const s = countBy("sentiment_label");
+
+    Plotly.newPlot("chart_dist", [
+      {x:t.x, y:t.y, type:"bar", name:"Tópico"},
+      {x:s.x, y:s.y, type:"bar", name:"Sentimiento"}
+    ], {
+      barmode:"group",
+      margin:{l:40,r:10,t:10,b:80},
+      paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+      xaxis:{tickangle:-35}, yaxis:{title:"n"},
+      legend:{orientation:"h"}
+    }, {displayModeBar:false});
+  }
+
+  function applyFilters(){
+    const fSource = el("f_source").value;
+    const fDomain = el("f_domain").value;
+    const fTopic  = el("f_topic").value;
+    const fSent   = el("f_sent").value;
+    const q = el("f_q").value.trim().toLowerCase();
+
+    state.filtered = state.raw.filter(r => {
+      if(fSource && r.source!==fSource) return false;
+      if(fDomain && r.domain!==fDomain) return false;
+      if(fTopic && (r.topic||"NA")!==fTopic) return false;
+      if(fSent && (r.sentiment_label||"NA")!==fSent) return false;
+
+      if(q){
+        const hay = [r.title,r.extracted_title,r.snippet,r.text,r.url].filter(Boolean).join(" ").toLowerCase();
+        if(!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    updateKPIs();
+    table.replaceData(state.filtered);
+    renderCharts();
+  }
+
+  async function load(){
+    try{
+      const metaResp = await fetch("data/meta.json", {cache:"no-store"});
+      if(metaResp.ok){
+        const meta = await metaResp.json();
+        const m = Array.isArray(meta) ? meta[0] : meta;
+        el("meta").textContent = `Actualizado: ${m.generated_at || "NA"} , items: ${m.n_items || 0}`;
+      } else {
+        el("meta").textContent = "meta.json no disponible.";
+      }
+    } catch(e){
+      el("meta").textContent = "meta.json no disponible.";
+    }
+
+    const resp = await fetch("data/latest.json", {cache:"no-store"});
+    if(!resp.ok){
+      el("meta").textContent += " | latest.json no encontrado.";
+      state.raw = [];
+      state.filtered = [];
+      applyFilters();
+      return;
+    }
+    const data = await resp.json();
+    state.raw = Array.isArray(data) ? data : (data.items || []);
+    state.raw = state.raw.map(r => ({...r, topic:r.topic||"NA", sentiment_label:r.sentiment_label||"NA"}));
+
+    setOptions("f_source", uniq(state.raw.map(x=>x.source)));
+    setOptions("f_domain", uniq(state.raw.map(x=>x.domain)));
+    setOptions("f_topic", uniq(state.raw.map(x=>x.topic)));
+    setOptions("f_sent", uniq(state.raw.map(x=>x.sentiment_label)));
+
+    ["f_source","f_domain","f_topic","f_sent"].forEach(id => el(id).addEventListener("change", applyFilters));
+    el("f_q").addEventListener("input", () => { clearTimeout(window.__t); window.__t=setTimeout(applyFilters, 200); });
+
+    state.filtered = state.raw.slice();
+    updateKPIs();
+    table.replaceData(state.filtered);
+    renderCharts();
+  }
+
+  load();
+</script>
+</body>
+</html>

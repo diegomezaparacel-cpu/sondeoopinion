@@ -1,0 +1,54 @@
+project:
+  company_name: "PARACEL"
+  days_back: 180
+  max_records_gdelt: 250
+  max_items_dashboard: 2000
+  timezone: "UTC"
+
+queries:
+  - name: "paracel_general"
+    query: '("PARACEL" OR Paracel)'
+
+sources:
+  gdelt: true
+  google_news_rss: true
+  rss_feeds: []
+    # - "https://example.com/rss"
+
+taxonomy:
+  topics:
+    - topic: "Ambiente"
+      pattern: "(ambient|medio\s*ambient|impacto\s*ambient|deforest|biodivers|agua|emision|carbon|CO2|residu|contamin)"
+    - topic: "Social y comunidades"
+      pattern: "(comunidad|poblacion|indigen|consulta|licencia\s*social|derechos|conflict|relacionamiento)"
+    - topic: "Laboral"
+      pattern: "(empleo|trabaj|sindicat|seguridad\s*y\s*salud|accident|salario|contrat|terceriz)"
+    - topic: "Economía e inversión"
+      pattern: "(inversion|export|import|mercado|financ|bono|credito|capex|proyecto|planta|produccion|celulosa)"
+    - topic: "Regulación"
+      pattern: "(licencia|permiso|ministerio|mades|auditor|fiscaliz|norma|decreto|resolucion)"
+    - topic: "NA"
+      pattern: ".*"
+
+sentiment:
+  enabled: true
+  positive:
+    - "crecimiento"
+    - "inversion"
+    - "empleo"
+    - "sostenible"
+    - "sustentable"
+    - "mejora"
+    - "desarrollo"
+    - "beneficio"
+    - "responsable"
+  negative:
+    - "contamin"
+    - "deforest"
+    - "conflict"
+    - "denuncia"
+    - "accident"
+    - "impacto"
+    - "multa"
+    - "irregular"
+    - "problema"

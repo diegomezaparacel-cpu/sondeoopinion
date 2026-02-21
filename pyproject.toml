@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paracel-monitor"
+version = "0.1.0"
+description = "Daily web/media opinion monitor for PARACEL (GDELT + RSS + extraction + dashboard)"
+requires-python = ">=3.10"
